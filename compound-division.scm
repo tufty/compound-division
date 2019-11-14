@@ -87,3 +87,26 @@
     (map (lambda (x)
            (list x (divisions-all-targets-for x)))
          divisions)))
+
+(define fractionate
+  (lambda (x y)
+    (let-values (((turns holes) (div-and-mod x y)))
+      (if (zero? turns)
+          (format "\frac{~a}{~a}" holes y)
+          (format "~a\frac{~a}{~a}" turns holes y)))))
+ 
+(define caddddr (lambda (x) (cadr (cdddr x))))
+
+(define latex-format-entry
+  (lambda (division x)
+    (let* ((error (car x))
+           (c1 (cadr x)) (h1 (caddr x))
+           (c2? (not (eqv? (cadddr x) 'any)))
+           (c2 (if c2? (cadddr x) 1))
+           (h2 (if c2? (caddddr x) 0))
+           (turns (ceiling (* division (+ (/ h1 (* *ratio* c1)) (/ h2 (* *ratio* c2)))))))
+      (if c2?
+          (format "~a + ~a & ~a & ~a\n" (fractionate h1 c1) (fractionate h2 c2) turns (fractionate (numerator error) (denominator error)))
+          (format "~a & ~a & ~a\n" (fractionate h1 c1) turns (fractionate (numerator error) (denominator error)))))))
+      
+            
