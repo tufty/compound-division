@@ -1,16 +1,12 @@
-(import (srfi :1) (srfi :26) (srfi :48))
+(import (srfi :1) (srfi :26))
 
 ;; Standard Brown and Sharpe indexing plates 
 (define *plates* '((15 16 17 18 19 20)
                    (21 23 27 29 31 33)
                    (37 39 41 43 47 49)))
 
-(define *plates* '((12 36 48 60 100)))
-
 ;; Brown and Sharpe dividing head ratio
 (define *ratio* 40)
-
-(define *ratio* 1)
 
 (define *tolerated-error-percentage* 0.002)
 
@@ -129,8 +125,8 @@
                       (ceiling (* division (+ (/ h1 (* *ratio* c1)) (/ h2 (* *ratio* c2))))))))
       (cond
        (intturns? (format " & -- & ~a & $ Exact $ \\\\\n" turns))
-       (c2? (format " & $ ~a + ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) turns (if (zero? error) "Exact" (trunc (inexact error)))))
-       (else (format " & $ ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) turns (if (zero? error) "Exact" (trunc (inexact error)))))))))
+       (c2? (format " & $ ~a + ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) turns (if (zero? error) "Exact" (format "~7,,0f" error))))
+       (else (format " & $ ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) turns (if (zero? error) "Exact" (format "~7,,0f" error))))))))
 
 
 (define (string-join strings delimiter)
@@ -153,30 +149,37 @@
 (define produce-latex-document
   (lambda (result-set)
     (format
-     "\\documentclass[a4paper,10pt]{article}
-\\usepackage{supertabular}
+     "\\documentclass[a4paper,landscape,10pt]{article}
+\\usepackage[a4paper,margin=1cm]{geometry}
+\\usepackage{xtab}
 \\usepackage{multirow}
 \\usepackage{multicol}
 \\usepackage{nicefrac}
+\\usepackage{booktabs}
+\\usepackage{printlen}
 \\begin{document}
-\\begin{multicols}{2}
+\\printlength\\textheight
+\\begin{multicols*}{3}
 \\tablehead{
 \\hline
 Division & Action & Turns & Error \\% \\\\
 \\hline}
 \\tabletail{\\hline}
-\\begin{supertabular}{|c|c|c|c|}
+\\begin{xtabular}{|c|c|c|c|}
 ~a
-\\end{supertabular}
-\\end{multicols}
+\\end{xtabular}
+\\end{multicols*}
 \\end{document}"
      (apply string-append (map latex-format-division result-set)))))
 
 
 (define produce
   (lambda (f)
-    (display (produce-latex-document (all-divisions-for-set (iota 400 1))) f)))
+    (display (produce-latex-document (all-divisions-for-set (iota 60 120))) f)))      
 
-(call-with-output-file "result.tex" produce)
+
+(call-with-output-file "result.tex" produce 'replace)
 
 (exit)
+
+
