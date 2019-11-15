@@ -116,6 +116,8 @@
  
 (define caddddr (lambda (x) (cadr (cdddr x))))
 
+(define pi (/ 355 133))  ;; Shitty approximation to pi but it's rational
+
 (define latex-format-entry
   (lambda (division x)
     (let* ((error (car x))
@@ -127,23 +129,27 @@
            (h2 (if c2? (caddddr x) 0))
            (turns (round (* division (+ (/ h1 (* *ratio* c1)) (/ h2 (* *ratio* c2))))))
            (divisions (if (zero? error) division (/ turns (+ (/ h1 (* c1 *ratio*)) (/ h2 (* c2 *ratio*))))))
-           (error-diameter (if (zero? error) "\\infty" (/ (abs (- division divisions)) 3.1415927))))
+           (error-diameter (if (zero? error) "\\infty"
+                               (exact (floor (abs (/ 0.01 (* pi (- 1 (/ divisions division))))))))))
       (cond
-       (intturns? (format " & ~a & ~a & $ Exact $ \\\\\n" h1 turns))
-       (c2? (format " & $ ~a + ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) turns (if (zero? error) "Exact" (format "~9,,0f" divisions))))
-       (else (format " & $ ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) turns (if (zero? error) "Exact" (format "~9,,0f" divisions))))))))
+       (intturns? (format " & $ ~a $ & $ ~a $ & $ Exact $ & $ ~a $ \\\\\n" h1 turns error-diameter))
+       (c2? (format " & $ ~a + ~a $ & $ ~a $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) turns (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter))
+       (else (format " & $ ~a $ & $ ~a $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h1 c1) turns (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter))))))
 
     
 (define latex-header "
 \\documentclass[a4paper,landscape,10pt]{article}
 \\usepackage[a4paper,margin=1cm]{geometry}
+\\usepackage{wasysym}
 \\usepackage{multirow}
 \\usepackage{multicol}
 \\usepackage{nicefrac}
 \\usepackage{tabularx}
+\\usepackage{makecell}
 \\usepackage{printlen}
 \\begin{document}
 \\begin{multicols}{3}
+\\small
 " )
 
 (define latex-footer "
@@ -160,9 +166,9 @@
 ")
 
 (define latex-column-header "
-\\begin{tabularx}{0.9\\columnwidth}{|c|c|c|X|}
+\\begin{tabularx}{0.98\\columnwidth}{|c|c|c|c|>{\\centering\\arraybackslash}X|}
 \\hline
-Division & Action & Turns & Exact Divisions \\\\
+\\makecell[cc]{Division} & \\makecell[cc]{Action} & \\makecell[cc]{Turns} & \\makecell[cc]{Exact\\\\Divisions} & \\makecell[cc]{\\diameter mm for\\\\0.01 error} \\\\
 \\hline
 ")
 
@@ -183,10 +189,11 @@ Division & Action & Turns & Exact Divisions \\\\
               (display latex-column-footer)
               (if (= current-column 3)
                   (begin
-                    (set! current-column 1)
+                    (set! current-column 0)
                     (display latex-page-footer)
                     (display latex-page-header)))
               (display latex-column-header)
+              (set! current-column (+ current-column 1))
               (set! height-left column-height)))
         
         (set! height-left (- height-left height))
@@ -198,12 +205,13 @@ Division & Action & Turns & Exact Divisions \\\\
     (let* ((division (car division-set))
            (results (cadr division-set))
            (lines (length results))) 
-      (if (zero? lines)
-          (latex-accumulate (format "~a & \\multicolumn{3}{c}{$ No Solution $} \\\\\n\\hline\n" division) 1)
-          (latex-accumulate (format "\\multirow{~a}{*}{~a} ~a \n\\hline\n"
-                                    lines division
-                                    (apply string-append (map (cut latex-format-entry division <>) results)))
-                            lines)))))
+      (cond
+       ((zero? lines) (latex-accumulate (format "$ ~a $ & \\multicolumn{3}{c}{$ No Solution $} \\\\\n\\hline\n" division) 1))
+       ((= 1 lines) (latex-accumulate (format " $ ~a $ ~a \n\\hline\n" division (latex-format-entry division (car results))) lines))
+        (else (latex-accumulate (format "\\multirow{~a}{*}{$ ~a $} ~a \n\\hline\n"
+                                        lines division
+                                        (apply string-append (map (cut latex-format-entry division <>) results)))
+                                lines))))))
 
 
 (define produce-latex-document
