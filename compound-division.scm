@@ -125,11 +125,13 @@
            (c2? (not (eqv? (cadddr x) 'any)))
            (c2 (if c2? (cadddr x) 1))
            (h2 (if c2? (caddddr x) 0))
-           (turns (ceiling (* division (+ (/ h1 (* *ratio* c1)) (/ h2 (* *ratio* c2)))))))
+           (turns (round (* division (+ (/ h1 (* *ratio* c1)) (/ h2 (* *ratio* c2))))))
+           (divisions (if (zero? error) division (/ turns (+ (/ h1 (* c1 *ratio*)) (/ h2 (* c2 *ratio*))))))
+           (error-diameter (if (zero? error) "\\infty" (/ (abs (- division divisions)) 3.1415927))))
       (cond
        (intturns? (format " & ~a & ~a & $ Exact $ \\\\\n" h1 turns))
-       (c2? (format " & $ ~a + ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) turns (if (zero? error) "Exact" (format "~9,,0f" error))))
-       (else (format " & $ ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) turns (if (zero? error) "Exact" (format "~9,,0f" error))))))))
+       (c2? (format " & $ ~a + ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) turns (if (zero? error) "Exact" (format "~9,,0f" divisions))))
+       (else (format " & $ ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) turns (if (zero? error) "Exact" (format "~9,,0f" divisions))))))))
 
     
 (define latex-header "
@@ -160,7 +162,7 @@
 (define latex-column-header "
 \\begin{tabularx}{0.9\\columnwidth}{|c|c|c|X|}
 \\hline
-Division & Action & Turns & Error \\% \\\\
+Division & Action & Turns & Exact Divisions \\\\
 \\hline
 ")
 
