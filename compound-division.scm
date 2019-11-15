@@ -98,6 +98,15 @@
            (list x (divisions-all-targets-for x)))
          divisions)))
 
+(define (join l s) 
+  (cond 
+   ((null? l) l)
+   ((null? (cdr l)) l)
+   (else (cons* (car l) s (join (cdr l) s)))))
+
+(define (string-join l s)
+  (reduce-right string-append "" (join l s)))
+
 (define fractionate
   (lambda (x y)
     (let-values (((turns holes) (div-and-mod x y)))
@@ -106,10 +115,6 @@
           (format "~a\\nicefrac{~a}{~a}" turns holes y)))))
  
 (define caddddr (lambda (x) (cadr (cdddr x))))
-
-(define trunc
-  (lambda (x)
-    (/ (round (* x 10000)) 10000)))
 
 (define latex-format-entry
   (lambda (division x)
@@ -125,61 +130,101 @@
                       (ceiling (* division (+ (/ h1 (* *ratio* c1)) (/ h2 (* *ratio* c2))))))))
       (cond
        (intturns? (format " & -- & ~a & $ Exact $ \\\\\n" turns))
-       (c2? (format " & $ ~a + ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) turns (if (zero? error) "Exact" (format "~7,,0f" error))))
-       (else (format " & $ ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) turns (if (zero? error) "Exact" (format "~7,,0f" error))))))))
+       (c2? (format " & $ ~a + ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) turns (if (zero? error) "Exact" (format "~9,,0f" error))))
+       (else (format " & $ ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) turns (if (zero? error) "Exact" (format "~9,,0f" error))))))))
 
-
-(define (string-join strings delimiter)
-  (if (null? strings)
-      ""
-      (fold (lambda (s so-far) (string-append so-far delimiter s))
-            (car strings)
-            (cdr strings))))
-
-(define latex-format-division
-  (lambda (division-set)
-    (let ((division (car division-set))
-          (results (cadr division-set)))
-      (if (zero? (length results))
-          (format "~a & \\multicolumn{3}{c}{$ No Solution $} \\\\\n\\hline\n" division)
-          (format "\\multirow{~a}{*}{~a} ~a \\hline\n"
-                  (length results) division
-                  (string-join (map (cut latex-format-entry division <>) results) "\\nopagebreak "))))))
-
-(define produce-latex-document
-  (lambda (result-set)
-    (format
-     "\\documentclass[a4paper,landscape,10pt]{article}
+    
+(define latex-header "
+\\documentclass[a4paper,landscape,10pt]{article}
 \\usepackage[a4paper,margin=1cm]{geometry}
-\\usepackage{xtab}
 \\usepackage{multirow}
 \\usepackage{multicol}
 \\usepackage{nicefrac}
-\\usepackage{booktabs}
+\\usepackage{tabularx}
 \\usepackage{printlen}
 \\begin{document}
-\\printlength\\textheight
-\\begin{multicols*}{3}
-\\tablehead{
+\\begin{multicols}{3}
+" )
+
+(define latex-footer "
+\\end{multicols}
+\\end{document}
+")
+
+(define latex-page-header "
+\\thispagestyle{empty}
+")
+
+(define latex-page-footer "
+\\pagebreak
+")
+
+(define latex-column-header "
+\\begin{tabularx}{0.9\\columnwidth}{|c|c|c|X|}
 \\hline
 Division & Action & Turns & Error \\% \\\\
-\\hline}
-\\tabletail{\\hline}
-\\begin{xtabular}{|c|c|c|c|}
-~a
-\\end{xtabular}
-\\end{multicols*}
-\\end{document}"
-     (apply string-append (map latex-format-division result-set)))))
+\\hline
+")
+
+(define latex-column-footer "
+\\end{tabularx}
+\\columnbreak
+")
+
+(define latex-accumulate
+  (let ((column-height 520)
+        (line-height 12)
+        (current-column 1)
+        (height-left 520))
+    (lambda (content lines)
+      (let ((height (* lines line-height))) 
+        (if (<= (- height-left height) 0)
+            (begin
+              (display latex-column-footer)
+              (if (= current-column 3)
+                  (begin
+                    (set! current-column 1)
+                    (display latex-page-footer)
+                    (display latex-page-header)))
+              (display latex-column-header)
+              (set! height-left column-height)))
+        
+        (set! height-left (- height-left height))
+        (display content)))))
+              
+
+(define latex-accumulate-result
+  (lambda (division-set)
+    (let* ((division (car division-set))
+           (results (cadr division-set))
+           (lines (length results))) 
+      (if (zero? lines)
+          (latex-accumulate (format "~a & \\multicolumn{3}{c}{$ No Solution $} \\\\\n\\hline\n" division) 1)
+          (latex-accumulate (format "\\multirow{~a}{*}{~a} ~a \n\\hline\n"
+                                    lines division
+                                    (apply string-append (map (cut latex-format-entry division <>) results)))
+                            lines)))))
+
+
+(define produce-latex-document
+  (lambda (result-set)
+    (display latex-header)
+    (display latex-page-header)
+    (display latex-column-header)
+
+    (map latex-accumulate-result result-set)
+    
+    (display latex-column-footer)
+    (display latex-page-footer)
+    (display latex-footer)))
 
 
 (define produce
-  (lambda (f)
-    (display (produce-latex-document (all-divisions-for-set (iota 60 120))) f)))      
+  (lambda ()
+    (produce-latex-document (all-divisions-for-set (iota 400 1))))) 
 
 
-(call-with-output-file "result.tex" produce 'replace)
+(with-output-to-file "result.tex" produce 'replace)
 
 (exit)
-
 
