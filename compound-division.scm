@@ -120,16 +120,14 @@
   (lambda (division x)
     (let* ((error (car x))
            (intturns? (eqv? (cadr x) 'any))
-           (c1 (cadr x))
+           (c1 (if intturns? 1 (cadr x)))
            (h1 (caddr x))
            (c2? (not (eqv? (cadddr x) 'any)))
            (c2 (if c2? (cadddr x) 1))
            (h2 (if c2? (caddddr x) 0))
-           (turns (if intturns?
-                      h1
-                      (ceiling (* division (+ (/ h1 (* *ratio* c1)) (/ h2 (* *ratio* c2))))))))
+           (turns (ceiling (* division (+ (/ h1 (* *ratio* c1)) (/ h2 (* *ratio* c2)))))))
       (cond
-       (intturns? (format " & -- & ~a & $ Exact $ \\\\\n" turns))
+       (intturns? (format " & ~a & ~a & $ Exact $ \\\\\n" h1 turns))
        (c2? (format " & $ ~a + ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) turns (if (zero? error) "Exact" (format "~9,,0f" error))))
        (else (format " & $ ~a $ & ~a & $ ~a $ \\\\\n" (fractionate h1 c1) turns (if (zero? error) "Exact" (format "~9,,0f" error))))))))
 
