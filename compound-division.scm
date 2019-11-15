@@ -5,10 +5,16 @@
                    (21 23 27 29 31 33)
                    (37 39 41 43 47 49)))
 
+;;(define *plates* '((25 27 29 31 33 35)))
+
 ;; Brown and Sharpe dividing head ratio
 (define *ratio* 40)
 
-(define *tolerated-error-percentage* 0.002)
+(define *divider-name* "Brown \\& Sharpe 40:1")
+
+;;(define *divider-name* "antoinus")
+
+(define *tolerated-error-percentage* 0.001)
 
 (define factors
   (lambda (n)
@@ -112,7 +118,7 @@
     (let-values (((turns holes) (div-and-mod x y)))
       (if (zero? turns)
           (format "\\nicefrac{~a}{~a}" holes y)
-          (format "~a\\nicefrac{~a}{~a}" turns holes y)))))
+          (format "~a + \\nicefrac{~a}{~a}" turns holes y)))))
  
 (define caddddr (lambda (x) (cadr (cdddr x))))
 
@@ -128,18 +134,21 @@
            (c2 (if c2? (cadddr x) 1))
            (h2 (if c2? (caddddr x) 0))
            (turns (round (* division (+ (/ h1 (* *ratio* c1)) (/ h2 (* *ratio* c2))))))
+           (degrees (* (+ (/ (* h1 360) (* c1 *ratio*)) (/ (* h2 360) (* c2 *ratio*))) division))
            (divisions (if (zero? error) division (/ turns (+ (/ h1 (* c1 *ratio*)) (/ h2 (* c2 *ratio*))))))
            (error-diameter (if (zero? error) "\\infty"
                                (exact (floor (abs (/ 0.01 (* pi (- 1 (/ divisions division))))))))))
       (cond
-       (intturns? (format " & $ ~a $ & $ ~a $ & $ Exact $ & $ ~a $ \\\\\n" h1 turns error-diameter))
-       (c2? (format " & $ ~a + ~a $ & $ ~a $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) turns (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter))
-       (else (format " & $ ~a $ & $ ~a $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h1 c1) turns (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter))))))
+       (intturns? (format " & $ ~a $ & $ ~7f $ & $ Exact $ & $ ~a $ \\\\\n" h1 (/ degrees turns) error-diameter))
+       (c2? (format " & $ ~a + ~a $ & $ ~7f $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) (/ degrees turns) (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter))
+       (else (format " & $ ~a $ & $ ~7f $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h1 c1) (/ degrees turns) (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter))))))
 
     
-(define latex-header "
-\\documentclass[a4paper,landscape,10pt]{article}
-\\usepackage[a4paper,margin=1cm]{geometry}
+(define latex-header (format "
+\\documentclass[a4paper,landscape,9pt]{extarticle}
+\\usepackage[a4paper,top=2cm,bottom=2cm,left=1cm,right=1cm]{geometry}
+\\usepackage[utf8]{inputenc}
+\\usepackage{textcomp}
 \\usepackage{wasysym}
 \\usepackage{multirow}
 \\usepackage{multicol}
@@ -147,41 +156,44 @@
 \\usepackage{tabularx}
 \\usepackage{makecell}
 \\usepackage{printlen}
+\\usepackage{fancyhdr}
+
+\\pagestyle{fancy}
+\\fancyhead{}
+\\fancyfoot{}
+\\fancyhead[C]{Division Tables pour ~a}
+\\fancyfoot[R]{\\small{Plateaux Diviseurs : ~a}\\\\\\small{Rapport Diviseur : ~a}}
+\\fancyfoot[L]{\\tiny{ La colonne \\diameter represent la diametre en mm du piece au-dela de lequel\\\\cette division donnera un erreur totale > 0,01mm}}
+
 \\begin{document}
 \\begin{multicols}{3}
 \\small
-" )
+
+" *divider-name* *plates* *ratio*))
 
 (define latex-footer "
 \\end{multicols}
 \\end{document}
 ")
 
-(define latex-page-header "
-\\thispagestyle{empty}
-")
+(define latex-page-header "" )
 
-(define latex-page-footer "
-\\pagebreak
-")
+(define latex-page-footer "" )
 
 (define latex-column-header "
 \\begin{tabularx}{0.98\\columnwidth}{|c|c|c|c|>{\\centering\\arraybackslash}X|}
 \\hline
-\\makecell[cc]{Division} & \\makecell[cc]{Action} & \\makecell[cc]{Turns} & \\makecell[cc]{Exact\\\\Divisions} & \\makecell[cc]{\\diameter mm for\\\\0.01 error} \\\\
+\\makecell[cc]{Division\\\\Voulu} & \\makecell[cc]{Manivelle Tours\\\\et Divisions} & \\makecell[cc]{Degrees\\\\Reels} & \\makecell[cc]{Divisions\\\\Reels} & \\makecell[cc]{\\diameter} \\\\
 \\hline
 ")
 
-(define latex-column-footer "
-\\end{tabularx}
-\\columnbreak
-")
+(define latex-column-footer "\\end{tabularx}\n")
 
 (define latex-accumulate
-  (let ((column-height 520)
-        (line-height 12)
+  (let ((column-height 492)
+        (line-height 9.8)
         (current-column 1)
-        (height-left 520))
+        (height-left 492))
     (lambda (content lines)
       (let ((height (* lines line-height))) 
         (if (<= (- height-left height) 0)
@@ -191,7 +203,9 @@
                   (begin
                     (set! current-column 0)
                     (display latex-page-footer)
-                    (display latex-page-header)))
+                    (display "\\pagebreak\n")
+                    (display latex-page-header))
+                  (display "\\columnbreak\n"))
               (display latex-column-header)
               (set! current-column (+ current-column 1))
               (set! height-left column-height)))
@@ -206,7 +220,7 @@
            (results (cadr division-set))
            (lines (length results))) 
       (cond
-       ((zero? lines) (latex-accumulate (format "$ ~a $ & \\multicolumn{3}{c}{$ No Solution $} \\\\\n\\hline\n" division) 1))
+       ((zero? lines) (latex-accumulate (format "$ ~a $ & \\multicolumn{3}{c}{$ Pas de solution $} \\\\\n\\hline\n" division) 1))
        ((= 1 lines) (latex-accumulate (format " $ ~a $ ~a \n\\hline\n" division (latex-format-entry division (car results))) lines))
         (else (latex-accumulate (format "\\multirow{~a}{*}{$ ~a $} ~a \n\\hline\n"
                                         lines division
