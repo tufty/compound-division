@@ -10,11 +10,11 @@
 ;; Brown and Sharpe dividing head ratio
 (define *ratio* 40)
 
-(define *divider-name* "Brown \\& Sharpe 40:1")
+(define *divider-name* "Brown \\& Sharpe")
 
 ;;(define *divider-name* "antoinus")
 
-(define *tolerated-error-percentage* 0.001)
+(define *tolerated-error-percentage* 0.002)
 
 (define factors
   (lambda (n)
@@ -24,6 +24,7 @@
 ;; For ratio R and division D, we need to advance the handle by R/D turns or some non-factor-of-D
 ;; multiple thereof
 ;; This gives us a set of fractions R/D ... x.R/D to solve for.
+;; I think this is where my 375 division bug comes from
 (define possible-targets
   (lambda (division)
     (sort <= (map (lambda (x) (* x (/ *ratio* division))) (cons 1 (lset-difference = (iota division 1) (factors division)))))))
@@ -39,6 +40,9 @@
 
 ;; Now that we know this, we can, for any given pair of circles, calculate the possible pairs of
 ;; divisions to solve for a value, thusly :
+
+;; Bug in here results in not providing single-disk approximations
+;; It's also in here that we could add negative turns if we wanted
 (define divisions-from-circles-for
   (lambda (circle-1 circle-2 target)
     (let ((c1s (divisions-from-circle-for circle-1 target)))
@@ -139,9 +143,9 @@
            (error-diameter (if (zero? error) "\\infty"
                                (exact (floor (abs (/ 0.01 (* pi (- 1 (/ divisions division))))))))))
       (cond
-       (intturns? (format " & $ ~a $ & $ ~7f $ & $ Exact $ & $ ~a $ \\\\\n" h1 (/ degrees turns) error-diameter))
-       (c2? (format " & $ ~a + ~a $ & $ ~7f $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) (/ degrees turns) (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter))
-       (else (format " & $ ~a $ & $ ~7f $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h1 c1) (/ degrees turns) (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter))))))
+       (intturns? (format " & $ ~a $ & $ ~a $ & $ Exact $ & $ ~a $ \\\\\n" h1 turns error-diameter))
+       (c2? (format " & $ ~a + ~a $ & $ ~a $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) turns (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter))
+       (else (format " & $ ~a $ & $ ~a $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h1 c1) turns (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter))))))
 
     
 (define latex-header (format "
@@ -161,15 +165,15 @@
 \\pagestyle{fancy}
 \\fancyhead{}
 \\fancyfoot{}
-\\fancyhead[C]{Division Tables pour ~a}
-\\fancyfoot[R]{\\small{Plateaux Diviseurs : ~a}\\\\\\small{Rapport Diviseur : ~a}}
-\\fancyfoot[L]{\\tiny{ La colonne \\diameter represent la diametre en mm du piece au-dela de lequel\\\\cette division donnera un erreur totale > 0,01mm}}
+\\fancyhead[C]{Division Tables pour ~a ~a:1}
+\\fancyfoot[R]{\\small{Plateaux Diviseurs : ~a}}
+\\fancyfoot[L]{\\tiny{ La colonne \\diameter represent la diametre en mm du piece au-dela de lequel\\\\la dernier trou du division sera deplace de plus que 0,01mm}}
 
 \\begin{document}
 \\begin{multicols}{3}
 \\small
 
-" *divider-name* *plates* *ratio*))
+" *divider-name* *ratio* *plates* ))
 
 (define latex-footer "
 \\end{multicols}
@@ -183,7 +187,7 @@
 (define latex-column-header "
 \\begin{tabularx}{0.98\\columnwidth}{|c|c|c|c|>{\\centering\\arraybackslash}X|}
 \\hline
-\\makecell[cc]{Division\\\\Voulu} & \\makecell[cc]{Manivelle Tours\\\\et Divisions} & \\makecell[cc]{Degrees\\\\Reels} & \\makecell[cc]{Divisions\\\\Reels} & \\makecell[cc]{\\diameter} \\\\
+\\makecell[cc]{Division\\\\Voulu} & \\makecell[cc]{Manivelle Tours\\\\et Divisions} & \\makecell[cc]{Tours de\\\\la Piece} & \\makecell[cc]{Divisions\\\\Reels} & \\makecell[cc]{\\diameter} \\\\
 \\hline
 ")
 
