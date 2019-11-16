@@ -24,7 +24,6 @@
 ;; For ratio R and division D, we need to advance the handle by R/D turns or some non-factor-of-D
 ;; multiple thereof
 ;; This gives us a set of fractions R/D ... x.R/D to solve for.
-;; I think this is where my 375 division bug comes from
 (define possible-targets
   (lambda (division)
     (sort <= (map (lambda (x) (* x (/ *ratio* division))) (cons 1 (lset-difference = (iota division 1) (factors division)))))))
@@ -38,16 +37,32 @@
           max-d
           (list (floor max-d) (ceiling max-d))))))
 
+(define angles-for
+  (lambda (solution division)
+    (unfold (lambda (x) (= x division))
+            (lambda (x) (let ((a1 (if (number? (cadr solution)) (/ (cadr solution) (caddr solution)) (caddr solution)))
+                              (a2 (if (number? (cadddr solution)) (/ (cadddr solution) (caddddr solution)) 0)))
+                          (* 360 (/ x *ratio*) (+ a1 a2))))
+            (lambda (x) (+ x 1))
+            0)))
+
+(define acceptable-solution-for
+  (lambda (solution division)
+    (if (and (< (car solution) *tolerated-error-percentage*)
+             (let ((angles (map (cut mod <> 360) (angles-for solution division))))
+               (= (length angles) (length (delete-duplicates angles)))))
+        solution #f)))
+
 ;; Now that we know this, we can, for any given pair of circles, calculate the possible pairs of
 ;; divisions to solve for a value, thusly :
 
 ;; Bug in here results in not providing single-disk approximations
 ;; It's also in here that we could add negative turns if we wanted
 (define divisions-from-circles-for
-  (lambda (circle-1 circle-2 target)
+  (lambda (circle-1 circle-2 target division)
     (let ((c1s (divisions-from-circle-for circle-1 target)))
       (filter-map
-       (lambda (x) (if (< (car x) *tolerated-error-percentage*) x #f)) ; Filter on percentage error
+       (cut acceptable-solution-for <> division)
        (if (number? c1s)                     ; Exact result from circle 1
            (if (zero? (mod c1s circle-1))     ; is an integer number of rotations
                `((0 any ,(div c1s circle-1) any 0))
@@ -71,16 +86,16 @@
 
 ;; For a plate, we need to do all the possible combinations
 (define divisions-from-plate-for
-  (lambda (plate target)
+  (lambda (plate target division)
     (let loop ((c1 (car plate)) (rest (cdr plate)) (result '()))
       (if (null? rest) result
           (loop (car rest) (cdr rest)
-                (append (append-map (cut divisions-from-circles-for c1 <> target) rest) result))))))
+                (append (append-map (cut divisions-from-circles-for c1 <> target division) rest) result))))))
 
 ;; And we can run the entire set of plates thuswise
 (define all-divisions-for
-  (lambda (target)
-    (append-map (cut divisions-from-plate-for <> target) *plates*)))
+  (lambda (target division)
+    (append-map (cut divisions-from-plate-for <> target division) *plates*)))
 
 ;; If we do this for all targets using append-map, we can get massive numbers of results for
 ;; the bigger divisions, even with a very low error tolerance.
@@ -98,7 +113,7 @@
                   ((any f1 results) (filter f1 results))  ;; Uses one ring, must be exact
                   ((any f0 results) (filter f0 results))  ;; Zero error, exact
                   ((>= (length results) 3) results)
-                  (else (loop (cdr targets) (append (all-divisions-for (car targets)) results)))))))))))
+                  (else (loop (cdr targets) (append (all-divisions-for (car targets) division) results)))))))))))
   
 ;; And thus we can get all possible approximate and exact divisions for a set of
 ;; divisions
