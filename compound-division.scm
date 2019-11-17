@@ -62,11 +62,16 @@
 ;; fractional division
 (define format-solution
   (lambda (c1 h1 c2 h2 target)
-    ;; For uniquification, we move all the full turns to circle 1 
+    ;; For uniquification, we move all the full turns to circle 1
     (let* ((turns2 (div h2 c2))  ;; Is h2 more than c2 holes?
            (h1 (if (zero? turns2) h1 (+ h1 (* turns2 c1))))
            (h2 (if (zero? turns2) h2 (- h2 (* turns2 c2)))))
-      (list (abs (/ (* 100 (- target (+ (/ h1 c1) (/ h2 c2)))) target)) c1 h1 c2 h2))))
+      ;; And now, if we have simply an integer number of turns on c1,
+      ;; reduce c1 to "1 hole circle" with than number of holes
+      (let* ((intc1 (zero? (mod h1 c1)))
+             (h1 (if intc1 (div h1 c1) h1))
+             (c1 (if intc1 1 c1)))
+        (list (abs (/ (* 100 (- target (+ (/ h1 c1) (/ h2 c2)))) target)) c1 h1 c2 h2)))))
     
 ;; For a pair of circles, a target fractional division, and a number of divisions, we can create
 ;; a list of potential solutions, viz:
@@ -245,7 +250,7 @@
            (results (cadr division-set))
            (lines (length results))) 
       (cond
-       ((zero? lines) (latex-accumulate (format "$ ~a $ & \\multicolumn{3}{c}{$ Pas de solution $} \\\\\n\\hline\n" division) 1))
+       ((zero? lines) (latex-accumulate (format "$ ~a $ & \\multicolumn{4}{c|}{ Pas de solution } \\\\\n\\hline\n" division) 1))
        ((= 1 lines) (latex-accumulate (format " $ ~a $ ~a \n\\hline\n" division (latex-format-entry division (car results))) lines))
         (else (latex-accumulate (format "\\multirow{~a}{*}{$ ~a $} ~a \n\\hline\n"
                                         lines division
@@ -268,7 +273,7 @@
 
 (define produce
   (lambda ()
-    (produce-latex-document (acceptable-solutions-for-set (iota 100 300))))) 
+    (produce-latex-document (acceptable-solutions-for-set (iota 400 1))))) 
 
 
 (with-output-to-file "result.tex" produce 'replace)
