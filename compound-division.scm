@@ -23,29 +23,34 @@
 
 ;; For ratio R and division D, we need to advance the handle by R/D turns or some non-factor-of-D
 ;; multiple thereof
-;; This gives us a set of fractions R/D ... x.R/D to solve for.
+;; This gives us a set of fractional divisions R/D ... x.R/D to solve for.
 (define possible-targets
   (lambda (division)
     (sort <= (map (lambda (x) (* x (/ *ratio* division))) (cons 1 (lset-difference = (iota division 1) (factors division)))))))
 
-;; For a given division circle c, ratio R and target value T, there are two possible solutions.
-;; Either there is an exact number of divisions providing T, or two divisions spanning T.
-(define divisions-from-circle-for
+;; For a given division circle c, ratio R and fractional division T, there are two possible solutions.
+;; Either there is an exact number of steps providing T, or two divisions spanning T.
+(define steps-from-circle-for
   (lambda (circle target)
     (let ((max-d (* target circle)))
       (if (integer? max-d)
-          max-d
+          (list max-d)
           (list (floor max-d) (ceiling max-d))))))
 
+;; For a proposed solution of the form (error circle-1 holes-1 circle2 holes-2), and a number of steps,
+;; returns a list of the actual angles of each division made.
 (define angles-for
-  (lambda (solution division)
-    (unfold (lambda (x) (= x division))
-            (lambda (x) (let ((a1 (if (number? (cadr solution)) (/ (cadr solution) (caddr solution)) (caddr solution)))
-                              (a2 (if (number? (cadddr solution)) (/ (cadddr solution) (caddddr solution)) 0)))
+  (lambda (solution steps)
+    (unfold (lambda (x) (= x steps))
+            (lambda (x) (let ((a1 (/ (caddr solution) (cadr solution)))
+                              (a2 (/ (caddddr solution) (cadddr solution))))
                           (* 360 (/ x *ratio*) (+ a1 a2))))
             (lambda (x) (+ x 1))
             0)))
 
+;; Determine if a proposed solution (error circle-1 holes-1 circle-2 holes-2) for a given division is
+;; acceptable
+;; It must both have an error percentage under the threshold, and not generate repeated divisions.
 (define acceptable-solution-for
   (lambda (solution division)
     (if (and (< (car solution) *tolerated-error-percentage*)
@@ -53,74 +58,75 @@
                (= (length angles) (length (delete-duplicates angles)))))
         solution #f)))
 
-;; Now that we know this, we can, for any given pair of circles, calculate the possible pairs of
-;; divisions to solve for a value, thusly :
+;; Wrap up a proposed solution with its error percentage with respect to a particular target
+;; fractional division
+(define format-solution
+  (lambda (c1 h1 c2 h2 target)
+    ;; For uniquification, we move all the full turns to circle 1 
+    (let* ((turns2 (div h2 c2))  ;; Is h2 more than c2 holes?
+           (h1 (if (zero? turns2) h1 (+ h1 (* turns2 c1))))
+           (h2 (if (zero? turns2) h2 (- h2 (* turns2 c2)))))
+      (list (abs (/ (* 100 (- target (+ (/ h1 c1) (/ h2 c2)))) target)) c1 h1 c2 h2))))
+    
+;; For a pair of circles, a target fractional division, and a number of divisions, we can create
+;; a list of potential solutions, viz:
+;; circle 1 alone (1 or two solutions)
+;; circle 1 + circle 2 (in the case of 2 solutions for circle 1)
+;; circle 2 alone
+;; circle 2 + circle 1 (in the case of 2 solutions for circle 2)
+(define potential-solutions-from-circles-for
+  (lambda (circle-1 circle-2 target)
+    (let* ((c1s (steps-from-circle-for circle-1 target))
+           (c2s (steps-from-circle-for circle-2 target))
+           (c12s (steps-from-circle-for circle-2 (- target (/ (car c1s) circle-1))))
+           (c21s (steps-from-circle-for circle-1 (- target (/ (car c2s) circle-2)))))
+      (append (map (cut format-solution circle-1 <> 1 0 target) c1s)
+              (map (cut format-solution circle-2 <> 1 0 target) c2s)
+              (map (cut format-solution circle-1 (car c1s) circle-2 <> target) c12s)
+              (map (cut format-solution circle-1 <> circle-2 (car c2s) target) c21s)))))
 
-;; Bug in here results in not providing single-disk approximations
-;; It's also in here that we could add negative turns if we wanted
-(define divisions-from-circles-for
-  (lambda (circle-1 circle-2 target division)
-    (let ((c1s (divisions-from-circle-for circle-1 target)))
-      (filter-map
-       (cut acceptable-solution-for <> division)
-       (if (number? c1s)                     ; Exact result from circle 1
-           (if (zero? (mod c1s circle-1))     ; is an integer number of rotations
-               `((0 any ,(div c1s circle-1) any 0))
-               `((0 ,circle-1 ,c1s any 0))) 
-           (append-map                       ; Otherwise produce a list of potentials with error percentage
-            (lambda (x)
-              (let ((d (divisions-from-circle-for circle-2 (- target (/ x circle-1))))
-                    (k (lambda (x y)
-                         (let* ((bigy (div y circle-2))
-                                (x (if (zero? bigy) x (+ x (* bigy circle-1))))
-                                (y (if (zero? bigy) y (- y (* bigy circle-2)))))
-                           (list (abs (/ (* 100 (- target (+ (/ x circle-1) (/ y circle-2)))) target)) circle-1 x circle-2 y)))))
-                (cond
-                 ((and (zero? x) (number? d))
-                  (if (zero? (mod d circle-2))
-                      `((0 any ,(div d circle-2) any 0))
-                      `((0 ,circle-2 ,d any 0))))
-                 ((number? d) (list (k x d)))
-                 (else (map (cut k x <>) d)))))
-            (iota (cadr c1s))))))))
-
-;; For a plate, we need to do all the possible combinations
-(define divisions-from-plate-for
-  (lambda (plate target division)
+;; And thus we can find all potential solutions from a single plate
+(define potential-solutions-from-plate-for
+  (lambda (plate target)
     (let loop ((c1 (car plate)) (rest (cdr plate)) (result '()))
       (if (null? rest) result
           (loop (car rest) (cdr rest)
-                (append (append-map (cut divisions-from-circles-for c1 <> target division) rest) result))))))
+                (append (append-map (cut potential-solutions-from-circles-for c1 <> target) rest) result))))))
+    
+;; And all potential solutions from all plates is gotten by iterating through all potential plates
+(define potential-solutions-from-plate-set-for
+  (lambda (target)
+    (append-map (cut potential-solutions-from-plate-for <> target) *plates*)))
 
-;; And we can run the entire set of plates thuswise
-(define all-divisions-for
+;; We can now filter those results to get the number of acceptable solutions
+(define acceptable-solutions-for
   (lambda (target division)
-    (append-map (cut divisions-from-plate-for <> target division) *plates*)))
+    (filter-map (cut acceptable-solution-for <> division) (potential-solutions-from-plate-set-for target))))
+
 
 ;; If we do this for all targets using append-map, we can get massive numbers of results for
 ;; the bigger divisions, even with a very low error tolerance.
 ;; So go through them one at a time, if we get an exact result or at least 3, drop out
-(define divisions-all-targets-for
+(define acceptable-solutions-all-targets-for
   (lambda (division)
-    (let ((result-sort (lambda (a b) (< (car a) (car b)))))
+    (let ((result-sort (lambda (a b) (< (car a) (car b)))))  ;; Sort results by increasing error
       (delete-duplicates
        (sort result-sort
              (let loop ((targets (possible-targets division)) (results '()))
                (let ((f0 (lambda (x) (zero? (car x))))
-                     (f1 (lambda (x) (eqv? (cadddr x) 'any))))
+                     (f1 (lambda (x) (= (cadddr x) 1))))
                  (cond
-                  ((null? targets) results)
-                  ((any f1 results) (filter f1 results))  ;; Uses one ring, must be exact
-                  ((any f0 results) (filter f0 results))  ;; Zero error, exact
-                  ((>= (length results) 3) results)
-                  (else (loop (cdr targets) (append (all-divisions-for (car targets) division) results)))))))))))
+                  ((any f1 results) (filter f1 results))     ;; Uses one ring, must be exact
+                  ((any f0 results) (filter f0 results))     ;; Zero error, exact
+                  ((>= (length results) 3) (take results 3)) ;; Return top 3 approximations
+                  ((null? targets) results)                  ;; No targets left, return what results we have
+                  (else (loop (cdr targets) (append (acceptable-solutions-for (car targets) division) results)))))))))))
   
-;; And thus we can get all possible approximate and exact divisions for a set of
-;; divisions
-(define all-divisions-for-set
+;; And thus we can get all possible approximate and exact solutions for a set of divisions
+(define acceptable-solutions-for-set
   (lambda (divisions)
     (map (lambda (x)
-           (list x (divisions-all-targets-for x)))
+           (list x (acceptable-solutions-all-targets-for x)))
          divisions)))
 
 (define (join l s) 
@@ -146,10 +152,10 @@
 (define latex-format-entry
   (lambda (division x)
     (let* ((error (car x))
-           (intturns? (eqv? (cadr x) 'any))
+           (intturns? (= (cadr x) 1))
            (c1 (if intturns? 1 (cadr x)))
            (h1 (caddr x))
-           (c2? (not (eqv? (cadddr x) 'any)))
+           (c2? (not (= (cadddr x) 1)))
            (c2 (if c2? (cadddr x) 1))
            (h2 (if c2? (caddddr x) 0))
            (turns (round (* division (+ (/ h1 (* *ratio* c1)) (/ h2 (* *ratio* c2))))))
@@ -262,7 +268,7 @@
 
 (define produce
   (lambda ()
-    (produce-latex-document (all-divisions-for-set (iota 400 1))))) 
+    (produce-latex-document (acceptable-solutions-for-set (iota 100 300))))) 
 
 
 (with-output-to-file "result.tex" produce 'replace)
