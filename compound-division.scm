@@ -1,20 +1,13 @@
+#!/usr/bin/env scheme-script
 (import (srfi :1) (srfi :26))
 
-;; Standard Brown and Sharpe indexing plates 
+(define *tolerated-error-percentage* 0.002)
+
+(define *divider-name* "Emco / Browne \\& Sharpe / Kertney \\& Trecker")
+(define *ratio* 40)
 (define *plates* '((15 16 17 18 19 20)
                    (21 23 27 29 31 33)
                    (37 39 41 43 47 49)))
-
-;;(define *plates* '((25 27 29 31 33 35)))
-
-;; Brown and Sharpe dividing head ratio
-(define *ratio* 40)
-
-(define *divider-name* "Brown \\& Sharpe")
-
-;;(define *divider-name* "antoinus")
-
-(define *tolerated-error-percentage* 0.002)
 
 (define factors
   (lambda (n)
@@ -62,33 +55,53 @@
 ;; fractional division
 (define format-solution
   (lambda (c1 h1 c2 h2 target)
-    ;; For uniquification, we move all the full turns to circle 1
-    (let* ((turns2 (div h2 c2))  ;; Is h2 more than c2 holes?
-           (h1 (if (zero? turns2) h1 (+ h1 (* turns2 c1))))
-           (h2 (if (zero? turns2) h2 (- h2 (* turns2 c2)))))
-      ;; And now, if we have simply an integer number of turns on c1,
-      ;; reduce c1 to "1 hole circle" with than number of holes
-      (let* ((intc1 (zero? (mod h1 c1)))
-             (h1 (if intc1 (div h1 c1) h1))
-             (c1 (if intc1 1 c1)))
-        (list (abs (/ (* 100 (- target (+ (/ h1 c1) (/ h2 c2)))) target)) c1 h1 c2 h2)))))
-    
+    (if (> c1 c2)
+        (format-solution c2 h2 c1 h1 target)
+        ;; For uniquification, we move all the full turns to circle 1
+        (let* ((turns2 (div h2 c2))  ;; Is h2 more than c2 holes?
+               (h1 (if (zero? turns2) h1 (+ h1 (* turns2 c1))))
+               (h2 (if (zero? turns2) h2 (- h2 (* turns2 c2)))))
+          ;; And now, if we have simply an integer number of turns on c1,
+          ;; reduce c1 to "1 hole circle" with that number of holes advance
+          (let* ((intc1 (zero? (mod h1 c1)))
+                 (h1 (if intc1 (div h1 c1) h1))
+                 (c1 (if intc1 1 c1))
+                 (intc2 (zero? (mod h2 c2)))
+                 (h2 (if intc2 (div h2 c2) h2))
+                 (c2 (if intc2 1 c2)))
+            (list (abs (/ (* 100 (- target (+ (/ h1 c1) (/ h2 c2)))) target)) c1 h1 c2 h2))))))
+
+(define format-solutions
+  (lambda (c1 h1 c2 h2s target)
+    (map (cut format-solution c1 h1 c2 <> target) h2s)))
+
 ;; For a pair of circles, a target fractional division, and a number of divisions, we can create
 ;; a list of potential solutions, viz:
 ;; circle 1 alone (1 or two solutions)
 ;; circle 1 + circle 2 (in the case of 2 solutions for circle 1)
 ;; circle 2 alone
 ;; circle 2 + circle 1 (in the case of 2 solutions for circle 2)
+;; Every possible combination of 1 <= x < circle 1 alone + y circle 2
+;; Every possible combination of 1 <= x < circle 2 alone + y circle 1
 (define potential-solutions-from-circles-for
   (lambda (circle-1 circle-2 target)
     (let* ((c1s (steps-from-circle-for circle-1 target))
            (c2s (steps-from-circle-for circle-2 target))
            (c12s (steps-from-circle-for circle-2 (- target (/ (car c1s) circle-1))))
-           (c21s (steps-from-circle-for circle-1 (- target (/ (car c2s) circle-2)))))
+           (c21s (steps-from-circle-for circle-1 (- target (/ (car c2s) circle-2))))
+           (c1n (iota (car c1s)))
+           (c2n (iota (car c2s)))
+           (c1t (map (lambda (x) (- target (/ x circle-1))) c1n))
+           (c2t (map (lambda (x) (- target (/ x circle-2))) c2n))
+           (c1ns (map (cut steps-from-circle-for circle-2 <>) c1t))
+           (c2ns (map (cut steps-from-circle-for circle-1 <>) c2t)))           
       (append (map (cut format-solution circle-1 <> 1 0 target) c1s)
               (map (cut format-solution circle-2 <> 1 0 target) c2s)
               (map (cut format-solution circle-1 (car c1s) circle-2 <> target) c12s)
-              (map (cut format-solution circle-1 <> circle-2 (car c2s) target) c21s)))))
+              (map (cut format-solution circle-1 <> circle-2 (car c2s) target) c21s)
+              (append-map (cut format-solutions circle-1 <> circle-2 <> target) c1n c1ns)
+              (append-map (cut format-solutions circle-2 <> circle-1 <> target) c2n c2ns)
+              ))))
 
 ;; And thus we can find all potential solutions from a single plate
 (define potential-solutions-from-plate-for
@@ -193,7 +206,7 @@
 \\fancyfoot{}
 \\fancyhead[C]{Division Tables pour ~a ~a:1}
 \\fancyfoot[R]{\\small{Plateaux Diviseurs : ~a}}
-\\fancyfoot[L]{\\tiny{ La colonne \\diameter represent la diametre en mm du piece au-dela de lequel\\\\la dernier trou du division sera deplace de plus que 0,01mm}}
+\\fancyfoot[L]{\\tiny{La colonne $ \\diameter $ représente le diamètre en mm de la pièce au delà duquel le dernier trou de la division sera déplacé de plus de 0,01 mm}}
 
 \\begin{document}
 \\begin{multicols}{3}
@@ -273,10 +286,8 @@
 
 (define produce
   (lambda ()
-    (produce-latex-document (acceptable-solutions-for-set (iota 400 1))))) 
-
+    (produce-latex-document (acceptable-solutions-for-set (iota 400 1)))))
 
 (with-output-to-file "result.tex" produce 'replace)
 
 (exit)
-
