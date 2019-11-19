@@ -51,11 +51,15 @@
                (= (length angles) (length (delete-duplicates angles)))))
         solution #f)))
 
+(define error-percentage-for
+  (lambda (c1 h1 c2 h2 target)
+    (abs (/ (* 100 (- target (+ (/ h1 c1) (/ h2 c2)))) target))))
+
 ;; Wrap up a proposed solution with its error percentage with respect to a particular target
 ;; fractional division
 (define format-solution
   (lambda (c1 h1 c2 h2 target)
-    (if (> c1 c2)
+    (if (> c1 c2) 
         (format-solution c2 h2 c1 h1 target)
         ;; For uniquification, we move all the full turns to circle 1
         (let* ((turns2 (div h2 c2))  ;; Is h2 more than c2 holes?
@@ -69,7 +73,12 @@
                  (intc2 (zero? (mod h2 c2)))
                  (h2 (if intc2 (div h2 c2) h2))
                  (c2 (if intc2 1 c2)))
-            (list (abs (/ (* 100 (- target (+ (/ h1 c1) (/ h2 c2)))) target)) c1 h1 c2 h2))))))
+            (if intc1
+                (if (zero? h1)
+                    (list (error-percentage-for c2 h2 1 0 target) c2 h2 1 0)
+                    (let ((h2 (+ h2 (* c2 h1))))
+                      (list (error-percentage-for c2 h2 1 0 target) c2 h2 1 0)))
+                (list (error-percentage-for c1 h1 c2 h2 target) c1 h1 c2 h2)))))))
 
 (define format-solutions
   (lambda (c1 h1 c2 h2s target)
@@ -89,8 +98,8 @@
            (c2s (steps-from-circle-for circle-2 target))
            (c12s (steps-from-circle-for circle-2 (- target (/ (car c1s) circle-1))))
            (c21s (steps-from-circle-for circle-1 (- target (/ (car c2s) circle-2))))
-           (c1n (iota (car c1s)))
-           (c2n (iota (car c2s)))
+           (c1n (iota (- (car c1s) 1) 1))
+           (c2n (iota (- (car c2s) 1) 1))
            (c1t (map (lambda (x) (- target (/ x circle-1))) c1n))
            (c2t (map (lambda (x) (- target (/ x circle-2))) c2n))
            (c1ns (map (cut steps-from-circle-for circle-2 <>) c1t))
@@ -119,27 +128,32 @@
 ;; We can now filter those results to get the number of acceptable solutions
 (define acceptable-solutions-for
   (lambda (target division)
-    (filter-map (cut acceptable-solution-for <> division) (potential-solutions-from-plate-set-for target))))
+    (delete-duplicates (filter-map (cut acceptable-solution-for <> division) (potential-solutions-from-plate-set-for target)))))
 
+
+(define sort-by-ring
+  (lambda (a b)
+    (or (< (cadr a) (cadr b)) (and (= (cadr a) (cadr b)) (< (caddr a) (caddr b))))))
+
+(define sort-by-error
+  (lambda (a b)
+    (< (car a ) (car b))))
 
 ;; If we do this for all targets using append-map, we can get massive numbers of results for
 ;; the bigger divisions, even with a very low error tolerance.
 ;; So go through them one at a time, if we get an exact result or at least 3, drop out
 (define acceptable-solutions-all-targets-for
   (lambda (division)
-    (let ((result-sort (lambda (a b) (< (car a) (car b)))))  ;; Sort results by increasing error
-      (delete-duplicates
-       (sort result-sort
-             (let loop ((targets (possible-targets division)) (results '()))
-               (let ((f0 (lambda (x) (zero? (car x))))
-                     (f1 (lambda (x) (= (cadddr x) 1))))
-                 (cond
-                  ((any f1 results) (filter f1 results))     ;; Uses one ring, must be exact
-                  ((any f0 results) (filter f0 results))     ;; Zero error, exact
-                  ((>= (length results) 3) (take results 3)) ;; Return top 3 approximations
-                  ((null? targets) results)                  ;; No targets left, return what results we have
-                  (else (loop (cdr targets) (append (acceptable-solutions-for (car targets) division) results)))))))))))
-  
+    (sort sort-by-error
+          (let loop ((targets (possible-targets division)) (results '()))
+            (display "-")(display (car targets))(display results)(newline)
+            (let ((f0 (lambda (x) (zero? (car x)))))
+              (cond
+               ((any f0 results) (filter f0 results))     ;; Zero error, exact
+               ((>= (length results) 3) (take results 3)) ;; Return top 3 approximations
+               ((null? targets) results)                  ;; No targets left, return what results we have
+               (else (loop (cdr targets) (append results (acceptable-solutions-for (car targets) division)))))))))))
+
 ;; And thus we can get all possible approximate and exact solutions for a set of divisions
 (define acceptable-solutions-for-set
   (lambda (divisions)
@@ -290,4 +304,4 @@
 
 (with-output-to-file "result.tex" produce 'replace)
 
-(exit)
+;;(exit)
