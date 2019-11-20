@@ -125,10 +125,15 @@
   (lambda (target)
     (append-map (cut potential-solutions-from-plate-for <> target) *plates*)))
 
+(define deduplicate
+  (lambda (a b)
+    (or (equal? a b)
+        (and (= (cadr a) (cadr b)) (= (cadddr a) (cadddr b))))))
+
 ;; We can now filter those results to get the number of acceptable solutions
 (define acceptable-solutions-for
   (lambda (target division)
-    (delete-duplicates (filter-map (cut acceptable-solution-for <> division) (potential-solutions-from-plate-set-for target)))))
+    (delete-duplicates! (filter-map (cut acceptable-solution-for <> division) (potential-solutions-from-plate-set-for target)) deduplicate)))
 
 
 (define sort-by-ring
@@ -153,7 +158,7 @@
                ((any f0 results) (filter f0 results))     ;; Zero error, exact
                ((>= (length results) 3) (take results 3)) ;; Return top 3 approximations
                ((null? targets) results)                  ;; No targets left, return what results we have
-               (else (loop (cdr targets) (append results (acceptable-solutions-for (car targets) division))))))))))
+               (else (loop (cdr targets) (delete-duplicates! (append results (acceptable-solutions-for (car targets) division)) deduplicate)))))))))
 
 ;; And thus we can get all possible approximate and exact solutions for a set of divisions
 (define acceptable-solutions-for-set
