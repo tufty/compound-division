@@ -1,4 +1,5 @@
 (define *divider-name* "Soba")
+(define *divider-short-name* "soba")
 (define *ratio* 90)
 (define *plates* '((15 16 17 18 19 20)
                    (21 23 27 29 31 33)

@@ -1,13 +1,6 @@
-#!/usr/bin/env scheme-script
 (import (srfi :1) (srfi :26))
 
 (define *tolerated-error-percentage* 0.002)
-
-(define *divider-name* "Emco / Browne \\& Sharpe / Kertney \\& Trecker")
-(define *ratio* 40)
-(define *plates* '((15 16 17 18 19 20)
-                   (21 23 27 29 31 33)
-                   (37 39 41 43 47 49)))
 
 (define factors
   (lambda (n)
@@ -308,6 +301,8 @@
   (lambda ()
     (produce-latex-document (acceptable-solutions-for-set (iota 400 1)))))
 
-(with-output-to-file "result.tex" produce 'replace)
+(let ((tex-file-name (format "~a.tex" *divider-short-name*)))
+  (with-output-to-file tex-file-name produce 'replace)
+  (system (format "pdflatex ~a" tex-file-name)))
 
-;;(exit)
+(exit)

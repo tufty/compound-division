@@ -1,4 +1,5 @@
-(define *divider-name* "Kertney & Trecker")
+(define *divider-name* "Kertney \\& Trecker")
+(define *divider-short-name* "kertney-trecker")
 (define *ratio* 60)
 (define *plates* '((15 16 17 18 19 20)
                    (21 23 27 29 31 33)

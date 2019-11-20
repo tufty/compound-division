@@ -1,4 +1,5 @@
 (define *divider-name* "Schaublin")
+(define *divider-short-name* "schaublin")
 (define *ratio* 40)
 (define *plates '((15 18 21 29 37 43)
                   (16 19 23 31 39 47)

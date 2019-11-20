@@ -1,4 +1,5 @@
 (define *divider-name* "Myford")
+(define *divider-short-name* "myford")
 (define *ratio* 60)
 (define *plates* '((29 31 37 41 42 43 46 47)
                    (32 34 38 45 49 77 91)
