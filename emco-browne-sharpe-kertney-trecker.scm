@@ -1,5 +1,5 @@
-(define *divider-name* "Emco / Browne & Sharpe / Kertney & Trecker")
-(define *divider-short-name* "emco-brown-kertney")
+(define *divider-name* "Emco / Browne \\& Sharpe / Kertney \\& Trecker")
+(define *divider-short-name* "emco-brown-sharpe-kertney-trecker")
 (define *ratio* 40)
 (define *plates* '((15 16 17 18 19 20)
                    (21 23 27 29 31 33)

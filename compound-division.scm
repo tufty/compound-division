@@ -246,10 +246,10 @@
 (define latex-column-footer "\\end{tabularx}\n")
 
 (define latex-accumulate
-  (let ((column-height 492)
+  (let ((column-height 490)
         (line-height 9.8)
         (current-column 1)
-        (height-left 492))
+        (height-left 490))
     (lambda (content lines)
       (let ((height (* lines line-height))) 
         (if (<= (- height-left height) 0)
@@ -283,7 +283,6 @@
                                         (apply string-append (map (cut latex-format-entry division <>) results)))
                                 lines))))))
 
-
 (define produce-latex-document
   (lambda (result-set)
     (display latex-header)
@@ -295,7 +294,6 @@
     (display latex-column-footer)
     (display latex-page-footer)
     (display latex-footer)))
-
 
 (define produce
   (lambda ()

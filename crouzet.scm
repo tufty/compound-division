@@ -1,5 +1,5 @@
 (define *divider-name* "Crouzet")
-(define *divider-short-name "crouzet")
+(define *divider-short-name* "crouzet")
 (define *ratio* 60)    
 (define *plates* '((14 19 23 29)
                    (16 21 26 36)

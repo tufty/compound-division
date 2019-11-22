@@ -1,4 +1,5 @@
 (define *divider-name* "Cincinnati Large Disk")
+(define *divider-short-name* "cincinnati-2")
 (define *ratio* 40)    
 (define *plates* '((30 48 69 91 99 117 129 147 171 177 189)
                    (36 67 81 97 111 127 141 157 169 183 199)
