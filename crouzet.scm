@@ -5,3 +5,6 @@
                    (16 21 26 36)
                    (17 22 27 40)
                    (31 37 47 60)))
+(define *tolerated-error-percentage* 0.002) ;; Tolerate an error of this percentage per step
+(define *first-division* 1)
+(define *last-division* 400)

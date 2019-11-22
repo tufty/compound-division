@@ -1,7 +1,5 @@
 (import (srfi :1) (srfi :26))
 
-(define *tolerated-error-percentage* 0.002)
-
 (define factors
   (lambda (n)
     (filter (lambda (x) (zero? (mod n x))) (iota n 1))))
@@ -297,7 +295,7 @@
 
 (define produce
   (lambda ()
-    (produce-latex-document (acceptable-solutions-for-set (iota 400 1)))))
+    (produce-latex-document (acceptable-solutions-for-set (iota (- *last-division* *first-division*) *first-division*)))))
 
 (let ((tex-file-name (format "~a.tex" *divider-short-name*)))
   (with-output-to-file tex-file-name produce 'replace)

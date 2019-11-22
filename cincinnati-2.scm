@@ -7,3 +7,6 @@
                    (32 44 77 89 107 121 137 151 163 179 193)
                    (26 42 73 87 103 119 133 149 161 175 191)
                    (28 38 71 83 101 113 131 143 159 173 187)))
+(define *tolerated-error-percentage* 0.002) ;; Tolerate an error of this percentage per step
+(define *first-division* 1)
+(define *last-division* 400)
