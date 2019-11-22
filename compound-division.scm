@@ -297,7 +297,7 @@
   (lambda ()
     (produce-latex-document (acceptable-solutions-for-set (iota (- *last-division* *first-division*) *first-division*)))))
 
-(let ((tex-file-name (format "~a.tex" *divider-short-name*)))
+(let ((tex-file-name (format "output/~a.tex" *divider-short-name*)))
   (with-output-to-file tex-file-name produce 'replace)
   (system (format "pdflatex ~a" tex-file-name)))
 
