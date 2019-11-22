@@ -299,6 +299,6 @@
 
 (let ((tex-file-name (format "output/~a.tex" *divider-short-name*)))
   (with-output-to-file tex-file-name produce 'replace)
-  (system (format "pdflatex ~a" tex-file-name)))
+  (system (format "pdflatex -output-directory output ~a" tex-file-name)))
 
 (exit)
