@@ -89,19 +89,26 @@
            (c2s (steps-from-circle-for circle-2 target))
            (c12s (steps-from-circle-for circle-2 (- target (/ (car c1s) circle-1))))
            (c21s (steps-from-circle-for circle-1 (- target (/ (car c2s) circle-2))))
-           (c1n (iota (- (car c1s) 1) 1))
-           (c2n (iota (- (car c2s) 1) 1))
+           ;; Now the easy bits of solution
+           (results (map (cut format-solution circle-1 <> 1 0 target) c1s))
+           (results (append (map (cut format-solution circle-2 <> 1 0 target) c2s) results))
+           (results (append (map (cut format-solution circle-1 (car c1s) circle-2 <> target) c12s) results))
+           (results (append (map (cut format-solution circle-1 <> circle-2 (car c2s) target) c21s) results))
+           ;; Work out the resuts we don't have for circle 1
+           (c1n (lset-difference (iota (- (car c1s) 1) 1) (map caddr results)))
            (c1t (map (lambda (x) (- target (/ x circle-1))) c1n))
-           (c2t (map (lambda (x) (- target (/ x circle-2))) c2n))
            (c1ns (map (cut steps-from-circle-for circle-2 <>) c1t))
-           (c2ns (map (cut steps-from-circle-for circle-1 <>) c2t)))           
-      (append (map (cut format-solution circle-1 <> 1 0 target) c1s)
-              (map (cut format-solution circle-2 <> 1 0 target) c2s)
-              (map (cut format-solution circle-1 (car c1s) circle-2 <> target) c12s)
-              (map (cut format-solution circle-1 <> circle-2 (car c2s) target) c21s)
-              (append-map (cut format-solutions circle-1 <> circle-2 <> target) c1n c1ns)
-              (append-map (cut format-solutions circle-2 <> circle-1 <> target) c2n c2ns)
-              ))))
+           ;; and get those results
+           (results (append (append-map (cut format-solutions circle-1 <> circle-2 <> target) c1n c1ns) results))
+
+           ;; Do the same for cirle 2
+           (c2n (lset-difference (iota (- (car c2s) 1) 1) (map caddddr results)))
+           (c2t (map (lambda (x) (- target (/ x circle-2))) c2n))
+           (c2ns (map (cut steps-from-circle-for circle-1 <>) c2t)))
+      (append
+       results
+       (append-map (cut format-solutions circle-2 <> circle-1 <> target) c2n c2ns)
+       ))))
 
 ;; And thus we can find all potential solutions from a single plate
 (define potential-solutions-from-plate-for
