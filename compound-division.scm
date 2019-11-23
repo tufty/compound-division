@@ -40,7 +40,6 @@
   (lambda (solution division)
     (if (and (< (car solution) *tolerated-error-percentage*)
              (> (caddr solution) 0)
-             (> (caddddr solution) 0)
              (let ((angles (map (cut mod <> 360) (angles-for solution division))))
                (= (length angles) (length (delete-duplicates angles)))))
         solution #f)))
