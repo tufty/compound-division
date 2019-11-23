@@ -11,14 +11,20 @@ In order to run this, you will need:
 
 We can then run the application, including the relevant dividing head definitions before the application itself.  Yeah, I should make this easier to run, but I can't be buggered.  Something like this:
 
-> scheme hbm.scm compound-division.scm
+```bash
+scheme [parameters for your scheme] hbm.scm compound-division.scm
+```
 
 It will take a while, and hopefully spit out a nicely formatted PDF.  To do this for your "special" dividing head, or for your own parameters, duplicate or modify a set of dividing head definitions.
 
-The provided files are definitions for the dividing heads listed in image dividing-heads.jpg
+The provided files are definitions for the dividing heads listed below :
 
-The default allowable error percentage produces results which are certainly respectable, but perhaps not ptimum.  Decreasing the allowable error will increase precision, but at the cost of run time.  If you want the absolute summum of precision, edit compound-division.scm, function acceptable-solutions-all-targets-for, commenting out or removing the following line : 
+![list of dividing heads](https://raw.githubusercontent.com/tufty/compound-division/master/dividing-heads.jpg)
 
-               ((>= (length results) 3) (take results 3)) ;; Return top 3 approximations
+The default allowable error percentage produces results which are certainly respectable, but perhaps not ptimum.  Decreasing the allowable error will increase precision, but at the cost of run time.  If you want the absolute summum of precision, edit compound-division.scm, function acceptable-solutions-all-targets-for, commenting out or removing the following 
+
+```scheme
+((>= (length results) 3) (take results 3)) ;; Return top 3 approximations
+```
 
 This will have the effect of traversing the entire search space, returning *all* solutions meeting the error criteria.  This guarantees the best approximations possible using additive compounding, but the cost in terms of processing time is massive - on my machine, calculating divisions 1 to 400 for the Browne & Sharpe divider takes around 10 seconds of CPU time if we cut at 3 results, more than 2 hours if we don't.  Sure, my code's not optimal, but the search space is enormous.
