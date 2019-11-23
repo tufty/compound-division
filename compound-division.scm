@@ -154,17 +154,16 @@
 ;; So go through them one at a time, if we get an exact result or at least 3, drop out
 (define acceptable-solutions-all-targets-for
   (lambda (division)
-    (head 
-     (sort sort-by-error
-           (let loop ((targets (possible-targets division)) (results '()))
-             (let ((f0 (lambda (x) (zero? (car x))))
-                   (f1 (lambda (x) (and (zero? (car x)) (= 1 (cadddr x))))))
-               (cond
-                ((any f1 results) (filter f1 results))     ;; Zero error, exact
-                ((any f0 results) (filter f0 results))     ;; Zero error, exact
-                ((>= (length results) 3) (take results 3)) ;; Return top 3 approximations
-                ((null? targets) results)                  ;; No targets left, return what results we have
-                (else (loop (cdr targets) (delete-duplicates! (append results (acceptable-solutions-for (car targets) division)) deduplicate))))))) 3)))
+    (sort sort-by-error
+          (let loop ((targets (possible-targets division)) (results '()))
+            (let ((f0 (lambda (x) (zero? (car x))))
+                  (f1 (lambda (x) (and (zero? (car x)) (= 1 (cadddr x))))))
+              (cond
+               ((any f1 results) (filter f1 results))     ;; Zero error, exact
+               ((any f0 results) (filter f0 results))     ;; Zero error, exact
+               ((>= (length results) 3) (head results 3)) ;; Return top 3 approximations
+               ((null? targets) (head results 3))         ;; No targets left, return what results we have
+               (else (loop (cdr targets) (delete-duplicates! (append results (acceptable-solutions-for (car targets) division)) deduplicate)))))))))
 
 ;; And thus we can get all possible approximate and exact solutions for a set of divisions
 (define acceptable-solutions-for-set
