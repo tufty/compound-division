@@ -15,6 +15,8 @@ We can then run the application, including the relevant dividing head definition
 
 It will take a while, and hopefully spit out a nicely formatted PDF.  To do this for your "special" dividing head, or for your own parameters, duplicate or modify a set of dividing head definitions.
 
+The provided files are definitions for the dividing heads listed in image dividing-heads.jpg
+
 The default allowable error percentage produces results which are certainly respectable, but perhaps not ptimum.  Decreasing the allowable error will increase precision, but at the cost of run time.  If you want the absolute summum of precision, edit compound-division.scm, function acceptable-solutions-all-targets-for, commenting out or removing the following line : 
 
                ((>= (length results) 3) (take results 3)) ;; Return top 3 approximations
