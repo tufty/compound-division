@@ -142,21 +142,29 @@
   (lambda (a b)
     (< (car a ) (car b))))
 
+(define head
+  (lambda (l c)
+    (let loop ((l l) (c c) (result '()))
+      (cond
+       ((or (null? l) (zero? c)) (reverse result))
+       (else (loop (cdr l) (- c 1) (cons (car l) result)))))))
+    
 ;; If we do this for all targets using append-map, we can get massive numbers of results for
 ;; the bigger divisions, even with a very low error tolerance.
 ;; So go through them one at a time, if we get an exact result or at least 3, drop out
 (define acceptable-solutions-all-targets-for
   (lambda (division)
-    (sort sort-by-error
-          (let loop ((targets (possible-targets division)) (results '()))
-            (let ((f0 (lambda (x) (zero? (car x))))
-                  (f1 (lambda (x) (and (zero? (car x)) (= 1 (cadddr x))))))
-              (cond
-               ((any f1 results) (filter f1 results))     ;; Zero error, exact
-               ((any f0 results) (filter f0 results))     ;; Zero error, exact
-               ((>= (length results) 3) (take results 3)) ;; Return top 3 approximations
-               ((null? targets) results)                  ;; No targets left, return what results we have
-               (else (loop (cdr targets) (delete-duplicates! (append results (acceptable-solutions-for (car targets) division)) deduplicate)))))))))
+    (head 
+     (sort sort-by-error
+           (let loop ((targets (possible-targets division)) (results '()))
+             (let ((f0 (lambda (x) (zero? (car x))))
+                   (f1 (lambda (x) (and (zero? (car x)) (= 1 (cadddr x))))))
+               (cond
+                ((any f1 results) (filter f1 results))     ;; Zero error, exact
+                ((any f0 results) (filter f0 results))     ;; Zero error, exact
+                ((>= (length results) 3) (take results 3)) ;; Return top 3 approximations
+                ((null? targets) results)                  ;; No targets left, return what results we have
+                (else (loop (cdr targets) (delete-duplicates! (append results (acceptable-solutions-for (car targets) division)) deduplicate))))))) 3)))
 
 ;; And thus we can get all possible approximate and exact solutions for a set of divisions
 (define acceptable-solutions-for-set
