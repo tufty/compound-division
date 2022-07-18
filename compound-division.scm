@@ -164,8 +164,9 @@
         (cond
          ((any f1 results) (filter f1 results))                          ;; Zero error, exact
          ((any f0 results) (filter f0 results))                          ;; Zero error, exact
-         ((>= (length results) 3) (head (sort sort-by-error results) 3)) ;; Return top 3 approximations
-         ((null? targets) (head (sort sort-by-error results) 3))         ;; No targets left, return what results we have
+         ;; uncomment next line to get *much* faster results, but miss some exact or vastly more precise ones 
+;;         ((>= (length results) 3) (head (sort sort-by-error results) 3)) ;; Return first 3 approximations
+         ((null? targets) (head (sort sort-by-error results) 3))         ;; No targets left, return top 3 results we have
          (else (loop (cdr targets) (delete-duplicates! (append results (acceptable-solutions-for (car targets) division)) deduplicate))))))))
 
 ;; And thus we can get all possible approximate and exact solutions for a set of divisions
@@ -198,12 +199,12 @@
 (define latex-format-entry
   (lambda (division x)
     (let* ((error (car x))
-           (intturns? (= (cadr x) 1))
-           (c1 (if intturns? 1 (cadr x)))
+           (c1 (cadr x))
            (h1 (caddr x))
            (c2? (not (= (cadddr x) 1)))
            (c2 (if c2? (cadddr x) 1))
            (h2 (if c2? (caddddr x) 0))
+           (intturns? (= c1 1))
            (turns (round (* division (+ (/ h1 (* *ratio* c1)) (/ h2 (* *ratio* c2))))))
            (degrees (* (+ (/ (* h1 360) (* c1 *ratio*)) (/ (* h2 360) (* c2 *ratio*))) division))
            (divisions (if (zero? error) division (/ turns (+ (/ h1 (* c1 *ratio*)) (/ h2 (* c2 *ratio*))))))
@@ -211,7 +212,17 @@
                                (exact (floor (abs (/ 0.01 (* pi (- 1 (/ divisions division))))))))))
       (cond
        (intturns? (format " & $ ~a $ & $ ~a $ & $ Exact $ & $ ~a $ \\\\\n" h1 turns error-diameter))
-       (c2? (format " & $ ~a + ~a $ & $ ~a $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) turns (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter))
+       (c2?
+        ;; Sod about to display the ring with the least number of holes to advance last
+        (let* ((r (+ (div h1 c1) (div h2 c2)))
+               (ho1 (mod h1 c1))
+               (ho2 (mod h2 c2))
+               (h1 (if (> ho1 ho2) (+ ho1 (* c1 r)) ho1))
+               (h2 (if (>= ho2 ho1) (+ ho2 (* c2 r)) ho2)))
+          (if (> ho1 ho2)
+              (format " & $ ~a + ~a $ & $ ~a $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h1 c1) (fractionate h2 c2) turns (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter)
+              (format " & $ ~a + ~a $ & $ ~a $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h2 c2) (fractionate h1 c1) turns (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter)
+              )))
        (else (format " & $ ~a $ & $ ~a $ & $ ~a $ & $ ~a $ \\\\\n" (fractionate h1 c1) turns (if (zero? error) "Exact" (format "~8,,0f" divisions)) error-diameter))))))
 
     
