@@ -5,4 +5,4 @@
                    (43 47 49 51 53 54 57 58 59 62 66)))	
 (define *tolerated-error-percentage* 0.002) ;; Tolerate an error of this percentage per step
 (define *first-division* 1)
-(define *last-division* 400)
+(define *last-division* 128)
