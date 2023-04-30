@@ -1,4 +1,4 @@
-(import (srfi :1) (srfi :26))
+(import (srfi :1) (srfi :26) (srfi :132))
 
 (define factors
   (lambda (n)
@@ -10,7 +10,7 @@
 ;; This gives us a set of fractional divisions R/D ... x.R/D to solve for.
 (define possible-targets
   (lambda (division)
-    (sort <= (map (lambda (x) (* x (/ *ratio* division))) (cons 1 (lset-difference = (iota division 1) (factors division)))))))
+    (list-sort <= (map (lambda (x) (* x (/ *ratio* division))) (cons 1 (lset-difference = (iota division 1) (factors division)))))))
 
 ;; For a given division circle c, ratio R and fractional division T, there are two possible solutions.
 ;; Either there is an exact number of steps providing T, or two divisions spanning T.
@@ -26,12 +26,13 @@
 ;; returns a list of the actual angles of each division made.
 (define angles-for
   (lambda (solution steps)
-    (unfold (lambda (x) (= x steps))
-            (lambda (x) (let ((a1 (/ (caddr solution) (cadr solution)))
-                              (a2 (/ (caddddr solution) (cadddr solution))))
-                          (* 360 (/ x *ratio*) (+ a1 a2))))
-            (lambda (x) (+ x 1))
-            0)))
+    (let* ((a1 (/ (caddr solution) (cadr solution)))
+           (a2 (/ (caddddr solution) (cadddr solution)))
+           (z (* 360 (+ a1 a2))))
+      (unfold (lambda (x) (= x steps))
+              (lambda (x) (* (/ x *ratio*) z))
+              (lambda (x) (+ x 1))
+              0))))
 
 ;; Determine if a proposed solution (error circle-1 holes-1 circle-2 holes-2) for a given division is
 ;; acceptable
@@ -47,6 +48,29 @@
 (define error-percentage-for
   (lambda (c1 h1 c2 h2 target)
     (abs (/ (* 100 (- target (+ (/ h1 c1) (/ h2 c2)))) target))))
+
+
+;; Generate a "canonical" solution from a pair of circles and holes
+;; lowest circle first, first circle takes all turns over 1.
+(define canonical-solution
+  (lambda (c1 h1 c2 h2)
+    (if (> c1 c2)
+        (canonical-solution c2 h2 c1 h1)
+        (let-values (((t1 r1) (div-and-mod h1 c1))
+                     ((t2 r2) (div-and-mod h2 c2)))
+          (let* ((intc1 (zero? r1))
+                 (intc2 (zero? r2))
+                 (h1 (if intc1 (+ t1 t2) (+ r1 (* c1 (+ t1 t2))))))
+            (list (if intc1 1 c1) h1 (if intc2 1 c2) r2))))))
+
+(define holes<
+  (lambda (x y)
+    (or (< (cadr x) (cadr y))
+        (< (cadddr x) (cadddr y)))))
+
+(define canonical-solutions
+  (lambda (c1 h1 c2 h2s)
+    (list-delete-neighbor-dups! equal? (list-sort! holes< (map (cut canonical-solution c1 h1 c2 <>) h2s)))))
 
 ;; Wrap up a proposed solution with its error percentage with respect to a particular target
 ;; fractional division
@@ -73,9 +97,18 @@
                       (list (error-percentage-for c2 h2 1 0 target) c2 h2 1 0)))
                 (list (error-percentage-for c1 h1 c2 h2 target) c1 h1 c2 h2)))))))
 
+(define solution<
+  (lambda (y x)
+    (or (< (car x) (car y))
+        (and (= (cadddr x) 1) (< (cadddr x) (cadddr y)))
+        (and (= (car x) (car y)) (< (cadr x) (cadr y)))
+        (and (= (car x) (car y)) (= (cadr x) (cadr y)) (< (cadddr x) (cadddr y))))))
+
+
 (define format-solutions
   (lambda (c1 h1 c2 h2s target)
-    (map (cut format-solution c1 h1 c2 <> target) h2s)))
+    (list-delete-neighbor-dups! equal? (list-sort solution< (map (cut format-solution c1 h1 c2 <> target) h2s)))))
+
 
 ;; For a pair of circles, a target fractional division, and a number of divisions, we can create
 ;; a list of potential solutions, viz:
@@ -92,11 +125,15 @@
            (c12s (steps-from-circle-for circle-2 (- target (/ (car c1s) circle-1))))
            (c21s (steps-from-circle-for circle-1 (- target (/ (car c2s) circle-2))))
            ;; Now the easy bits of solution
-           (results (map (cut format-solution circle-1 <> 1 0 target) c1s))
-           (results (append (map (cut format-solution circle-2 <> 1 0 target) c2s) results))
+           (results (format-solutions 1 0 circle-1 c1s target))
+           (results (append (format-solutions 1 0 circle-2 c2s target)))
+           (results (append (format-solutions circle-1 (car c1s) circle-2 c12s target)))
+           (results (append (format-solutions circle-2 (car c2s) circle-1 c21s target))))
+;;           (results (map (cut format-solution circle-1 <> 1 0 target) c1s))
+;;           (results (append (map (cut format-solution circle-2 <> 1 0 target) c2s) results))
            
-           (results (append (map (cut format-solution circle-1 (car c1s) circle-2 <> target) c12s) results))
-           (results (append (map (cut format-solution circle-1 <> circle-2 (car c2s) target) c21s) results)))
+;;           (results (append (map (cut format-solution circle-1 (car c1s) circle-2 <> target) c12s) results))
+;;           (results (append (map (cut format-solution circle-1 <> circle-2 (car c2s) target) c21s) results)))
       (let ((results
              (if (zero? (car c1s))   ;; Work out the resuts we don't have for circle 1
                  results
@@ -104,15 +141,16 @@
                         (c1t (map (lambda (x) (- target (/ x circle-1))) c1n))
                         (c1ns (map (cut steps-from-circle-for circle-2 <>) c1t)))
                    (append (append-map (cut format-solutions circle-1 <> circle-2 <> target) c1n c1ns) results)))))
-        (if (zero? (car c2s))
-            results
-            (let* ((c2n (lset-difference (iota (- (car c2s) 1) 1) (map caddddr results)))
-                   (c2t (map (lambda (x) (- target (/ x circle-2))) c2n))
-                   (c2ns (map (cut steps-from-circle-for circle-1 <>) c2t)))
-              (append
-               results
-               (append-map (cut format-solutions circle-2 <> circle-1 <> target) c2n c2ns)
-               )))))))
+        (list-delete-neighbor-dups! equal? (list-sort! solution<
+             (if (zero? (car c2s))
+                 results
+                 (let* ((c2n (lset-difference (iota (- (car c2s) 1) 1) (map caddddr results)))
+                        (c2t (map (lambda (x) (- target (/ x circle-2))) c2n))
+                        (c2ns (map (cut steps-from-circle-for circle-1 <>) c2t)))
+                   (append
+                    results
+                    (append-map (cut format-solutions circle-2 <> circle-1 <> target) c2n c2ns)
+                    )))))))))
 
 ;; And thus we can find all potential solutions from a single plate
 (define potential-solutions-from-plate-for
@@ -120,31 +158,22 @@
     (let loop ((c1 (car plate)) (rest (cdr plate)) (result '()))
       (if (null? rest) result
           (loop (car rest) (cdr rest)
-                (append (append-map (cut potential-solutions-from-circles-for c1 <> target) rest) result))))))
+                        (list-delete-neighbor-dups! equal? (list-sort! solution< (append (append-map (cut potential-solutions-from-circles-for c1 <> target) rest) result))))))))
     
 ;; And all potential solutions from all plates is gotten by iterating through all potential plates
 (define potential-solutions-from-plate-set-for
   (lambda (target)
-    (append-map (cut potential-solutions-from-plate-for <> target) *plates*)))
-
-(define deduplicate
-  (lambda (a b)
-    (or (equal? a b)
-        (and (= (cadr a) (cadr b)) (= (cadddr a) (cadddr b))))))
+            (list-delete-neighbor-dups! equal? (list-sort! solution< (append-map (cut potential-solutions-from-plate-for <> target) *plates*)))))
 
 ;; We can now filter those results to get the number of acceptable solutions
 (define acceptable-solutions-for
   (lambda (target division)
-    (delete-duplicates! (filter-map (cut acceptable-solution-for <> division) (potential-solutions-from-plate-set-for target)) deduplicate)))
+    (list-delete-neighbor-dups! equal? (list-sort! solution< (filter-map (cut acceptable-solution-for <> division) (potential-solutions-from-plate-set-for target))))))
 
 
 (define sort-by-ring
   (lambda (a b)
     (or (< (cadr a) (cadr b)) (and (= (cadr a) (cadr b)) (< (caddr a) (caddr b))))))
-
-(define sort-by-error
-  (lambda (a b)
-    (< (car a ) (car b))))
 
 (define head
   (lambda (l c)
@@ -153,22 +182,16 @@
        ((or (null? l) (zero? c)) '())
        (else (cons (car l) (loop (cdr l) (- c 1))))))))
     
-;; If we do this for all targets using append-map, we can get massive numbers of results for
-;; the bigger divisions, even with a very low error tolerance.
-;; So go through them one at a time, if we get an exact result or at least 3, drop out
+
+;; This is extremely slow for the moment, need to move the sorting and deduplicating further up  
 (define acceptable-solutions-all-targets-for
   (lambda (division)
-    (let loop ((targets (possible-targets division)) (results '()))
-      (let ((f0 (lambda (x) (zero? (car x))))
-            (f1 (lambda (x) (and (zero? (car x)) (= 1 (cadddr x))))))
+    (let ((results (sort solution< (delete-duplicates! (append-map (cut acceptable-solutions-for <> division) (possible-targets division)) equal?)))
+          (f0 (lambda (x) (zero? (car x)))))
         (cond
-         ((any f1 results) (filter f1 results))                          ;; Zero error, exact
          ((any f0 results) (filter f0 results))                          ;; Zero error, exact
-         ;; uncomment next line to get *much* faster results, but miss some exact or vastly more precise ones 
-;;         ((>= (length results) 3) (head (sort sort-by-error results) 3)) ;; Return first 3 approximations
-         ((null? targets) (head (sort sort-by-error results) 3))         ;; No targets left, return top 3 results we have
-         (else (loop (cdr targets) (delete-duplicates! (append results (acceptable-solutions-for (car targets) division)) deduplicate))))))))
-
+         (else (head results 3))))))
+         
 ;; And thus we can get all possible approximate and exact solutions for a set of divisions
 (define acceptable-solutions-for-set
   (lambda (divisions)
@@ -329,4 +352,4 @@
   (with-output-to-file tex-file-name produce 'replace)
   (system (format "pdflatex -output-directory output ~a" tex-file-name)))
 
-(exit)
+;;(exit)
