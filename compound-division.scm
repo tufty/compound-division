@@ -98,16 +98,22 @@
                 (list (error-percentage-for c1 h1 c2 h2 target) c1 h1 c2 h2)))))))
 
 (define solution<
-  (lambda (y x)
+  (lambda (x y)
     (or (< (car x) (car y))
-        (and (= (cadddr x) 1) (< (cadddr x) (cadddr y)))
-        (and (= (car x) (car y)) (< (cadr x) (cadr y)))
-        (and (= (car x) (car y)) (= (cadr x) (cadr y)) (< (cadddr x) (cadddr y))))))
+        (< (cadr x) (cadr y))
+        (< (cadddr x) (cadddr y)))))
+
+(define solution=
+  (lambda (x y)
+    (or (equal? x y)
+        (and (= (car x) (car y))          ; same error
+             (= (cadr x) (cadr y))        ; same rings
+             (= (cadddr x) (cadddr y))))))
 
 
 (define format-solutions
   (lambda (c1 h1 c2 h2s target)
-    (list-delete-neighbor-dups! equal? (list-sort solution< (map (cut format-solution c1 h1 c2 <> target) h2s)))))
+    (list-delete-neighbor-dups! solution= (list-sort solution< (map (cut format-solution c1 h1 c2 <> target) h2s)))))
 
 
 ;; For a pair of circles, a target fractional division, and a number of divisions, we can create
@@ -127,21 +133,16 @@
            ;; Now the easy bits of solution
            (results (format-solutions 1 0 circle-1 c1s target))
            (results (append (format-solutions 1 0 circle-2 c2s target)))
-           (results (append (format-solutions circle-1 (car c1s) circle-2 c12s target)))
-           (results (append (format-solutions circle-2 (car c2s) circle-1 c21s target))))
-;;           (results (map (cut format-solution circle-1 <> 1 0 target) c1s))
-;;           (results (append (map (cut format-solution circle-2 <> 1 0 target) c2s) results))
-           
-;;           (results (append (map (cut format-solution circle-1 (car c1s) circle-2 <> target) c12s) results))
-;;           (results (append (map (cut format-solution circle-1 <> circle-2 (car c2s) target) c21s) results)))
-      (let ((results
-             (if (zero? (car c1s))   ;; Work out the resuts we don't have for circle 1
-                 results
-                 (let* ((c1n (lset-difference (iota (- (car c1s) 1) 1) (map caddr results)))
-                        (c1t (map (lambda (x) (- target (/ x circle-1))) c1n))
-                        (c1ns (map (cut steps-from-circle-for circle-2 <>) c1t)))
-                   (append (append-map (cut format-solutions circle-1 <> circle-2 <> target) c1n c1ns) results)))))
-        (list-delete-neighbor-dups! equal? (list-sort! solution<
+           (results (append-map (cut format-solutions circle-1 <> circle-2 c12s target) c1s))
+           (results (append-map (cut format-solutions circle-2 <> circle-1 c21s target) c2s))
+           (results
+            (if (zero? (car c1s))   ;; Work out the resuts we don't have for circle 1
+                results
+                (let* ((c1n (lset-difference (iota (- (car c1s) 1) 1) (map caddr results)))
+                       (c1t (map (lambda (x) (- target (/ x circle-1))) c1n))
+                       (c1ns (map (cut steps-from-circle-for circle-2 <>) c1t)))
+                  (append (append-map (cut format-solutions circle-1 <> circle-2 <> target) c1n c1ns) results)))))
+        (list-delete-neighbor-dups! solution= (list-sort! solution<
              (if (zero? (car c2s))
                  results
                  (let* ((c2n (lset-difference (iota (- (car c2s) 1) 1) (map caddddr results)))
@@ -150,7 +151,7 @@
                    (append
                     results
                     (append-map (cut format-solutions circle-2 <> circle-1 <> target) c2n c2ns)
-                    )))))))))
+                    ))))))))
 
 ;; And thus we can find all potential solutions from a single plate
 (define potential-solutions-from-plate-for
@@ -158,17 +159,17 @@
     (let loop ((c1 (car plate)) (rest (cdr plate)) (result '()))
       (if (null? rest) result
           (loop (car rest) (cdr rest)
-                        (list-delete-neighbor-dups! equal? (list-sort! solution< (append (append-map (cut potential-solutions-from-circles-for c1 <> target) rest) result))))))))
+                        (list-delete-neighbor-dups! solution= (list-sort! solution< (append (append-map (cut potential-solutions-from-circles-for c1 <> target) rest) result))))))))
     
 ;; And all potential solutions from all plates is gotten by iterating through all potential plates
 (define potential-solutions-from-plate-set-for
   (lambda (target)
-            (list-delete-neighbor-dups! equal? (list-sort! solution< (append-map (cut potential-solutions-from-plate-for <> target) *plates*)))))
+            (list-delete-neighbor-dups! solution= (list-sort! solution< (append-map (cut potential-solutions-from-plate-for <> target) *plates*)))))
 
 ;; We can now filter those results to get the number of acceptable solutions
 (define acceptable-solutions-for
   (lambda (target division)
-    (list-delete-neighbor-dups! equal? (list-sort! solution< (filter-map (cut acceptable-solution-for <> division) (potential-solutions-from-plate-set-for target))))))
+    (list-delete-neighbor-dups! solution= (list-sort! solution< (filter-map (cut acceptable-solution-for <> division) (potential-solutions-from-plate-set-for target))))))
 
 
 (define sort-by-ring
@@ -186,7 +187,7 @@
 ;; This is extremely slow for the moment, need to move the sorting and deduplicating further up  
 (define acceptable-solutions-all-targets-for
   (lambda (division)
-    (let ((results (sort solution< (delete-duplicates! (append-map (cut acceptable-solutions-for <> division) (possible-targets division)) equal?)))
+    (let ((results (list-delete-neighbor-dups! solution= (list-sort! solution< (append-map (cut acceptable-solutions-for <> division) (possible-targets division)))))
           (f0 (lambda (x) (zero? (car x)))))
         (cond
          ((any f0 results) (filter f0 results))                          ;; Zero error, exact
