@@ -5,6 +5,10 @@
   (lambda (n)
     (filter (lambda (x) (zero? (mod n x))) (iota n 1))))
 
+(define min-max
+  (lambda (x y)
+    (values (min x y) (max x y))))
+
 ;; For ratio R and division D, we need to advance the handle by R/D turns or some non-factor-of-D
 ;; multiple thereof
 ;; This gives us a set of fractional divisions R/D ... x.R/D to solve for.
@@ -16,7 +20,7 @@
 ;; Is this an exact result?
 (define exact-result?
   (lambda (x)
-    (zero? (car x))))
+    (and (not (null? x)) (zero? (car x)))))
 
 ;; Previously I'd been going too far down the rabbit hole in terms of resolving this problem.
 ;; We can consider the number of divisions available in a single rotation of the piece
@@ -30,9 +34,11 @@
           (list 0 (* max-d *ratio*) c1 c2)                ; This is an exact result already
           (let* ((e (- max-d (round max-d)))
                  (e% (abs (* 100 (/ e max-d)))))
-            (if (<= e 0.5)
-                (list e% (* (floor max-d) *ratio*) c1 c2)        ; This pair are inexact and will
-                (list e% (* (ceiling max-d) *ratio*) c1 c2))))))); require further attention later
+            (if (<= e% *tolerated-error-percentage*)
+                (if (<= e 0.5)
+                    (list target (* (floor max-d) *ratio*) c1 c2)   ; This pair are inexact and will
+                    (list target (* (ceiling max-d) *ratio*) c1 c2)); require further attention later
+                #f))))))
 
 (define sorter
   (lambda (pred fn)
@@ -43,9 +49,9 @@
 ;; and discard the rest.
 (define all-solutions-from-circles-for
   (lambda (c1 c2 targets)
-    (let-values (((er ir) (partition exact-result? (lset-union equal? (map (cut steps-from-circles-for c1 c2 <>) targets)))))
+    (let-values (((er ir) (partition exact-result? (lset-union equal? (filter-map (cut steps-from-circles-for c1 c2 <>) targets)))))
       (if (null? er)
-          (head (list-sort (sorter < car) ir) 3)
+          ir
           (head (list-sort! (sorter < cadr) er) 1)))))
 
 ;; For a given plate, we must permute the circles and generate all solutions.
@@ -56,7 +62,7 @@
       (if (null? rest)
           (let-values (((er ir) (partition exact-result? results)))
             (if (null? er)
-                (head (list-sort (sorter < car) ir) 3)
+                ir
                 er))
           (loop (append (append-map (cut all-solutions-from-circles-for c1 <> targets) rest) results)
                 (car rest)
@@ -70,7 +76,7 @@
            (results (append-map (cut all-solutions-from-plate-for <> targets) *plates*)))
       (let-values (((er ir) (partition exact-result? results)))
         (if (null? er)
-            (head (list-sort (sorter < car) ir) 3)
+            (head (list-sort (sorter < cadr) ir) 20)
             er)))))
 
 (define r=
@@ -85,11 +91,11 @@
         (< (caddr x) (caddr y))
         (< (caddddr x) (caddddr y)))))
 
+(define error-for
+  (lambda (target turns c1 h1 c2 h2)
+    (abs (/ (* 100 (- target (+ turns (/ h1 c1) (/ h2 c2)))) target))))
 
-(define permute
-  (lambda (x y)
-    (append-map (lambda (x) (map (lambda (y) (cons x y)) (iota y))) (iota x))))
-
+    
 ;; Now that we have a solution, we need to resolve it into a number of turns,
 ;; and steps on each wheel
 (define resolve-solution
@@ -110,15 +116,29 @@
              ((find (lambda (x) (= s1 (* c2 x))) (iota (- c1 1) 1)) => (lambda(x) (list (list e turns c2 h2 c1 x))))
              (else '()))
              ;; inexact solution - calculate all possible results and return the top one
-
-            (let ((best (car (list-sort (sorter < car)
-                                        (map (lambda (p)
-                                               (list (abs (- steps (+ (* turns c1 c2) (* c2 (car p)) (* c1 (cdr p)))))
-                                                     c1 (car p) c2 (cdr p)))
-                                             (permute c1 c2))))))
-              (list (list e turns (cadr best) (caddr best) (cadddr best) (caddddr best)))))))))
-                        
-
+            (let-values (((c1 c2) (min-max c1 c2)))
+              (let* ((left (- steps (* turns c1 c2)))
+                     (c1s (iota 2 (div left c2)))   ; Possible solutions using only c1
+                     (c2s (iota 2 (div left c1)))   ; possible solutions using only c2
+                     (solve (lambda (c1 m c2)       ; minimum set of possible solutions using both
+                          (append-map
+                           (lambda (x)
+                             (let ((left (- left (* x c2))))
+                               (filter-map (lambda (y) (if (and (> y 0) (< y c2)) (list x y) #f))
+                                           (iota 2 (div left c1)))))
+                           (iota m 1))))
+                     (c12s (solve c1 (car c1s) c2))
+                     (c21s (solve c2 (car c2s) c1)))
+                (filter (lambda (x) (< (car x) *tolerated-error-percentage*))
+                        (append 
+                         (list (list (error-for e turns c1 (car c1s) 1 0) turns c1 (car c1s) 1 0)
+                               (list (error-for e turns c1 (cadr c1s) 1 0) turns c1 (cadr c1s) 1 0)
+                               (list (error-for e turns c2 (car c2s) 1 0) turns c2 (car c2s) 1 0)
+                               (list (error-for e turns c2 (cadr c2s) 1 0) turns c2 (cadr c2s) 1 0))
+                         (map (lambda (p) (list (error-for e turns c1 (car p) c2 (cadr p)) turns c1 (car p) c2 (cadr p))) c12s)
+                         (map (lambda (p) (list (error-for e turns c1 (cadr p) c2 (car p)) turns c1 (cadr p) c2 (car p))) c21s)))
+                )))))))
+ 
 ;; Generate a list of fully resolved solutions for a set of divisions 
 (define solutions-for-set
   (lambda (divisions)
@@ -290,4 +310,4 @@
   (with-output-to-file tex-file-name produce 'replace)
   (system (format "pdflatex -output-directory output ~a" tex-file-name)))
 
-;;(exit)
+(exit)
